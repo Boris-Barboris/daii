@@ -58,7 +58,7 @@ struct Unique(T, Allocator = Mallocator)
             }
 
             // factory function for types with parameterless constructors
-            static Unique!(T, Allocator) make(Args...)(auto ref Args args) @trusted
+            static Unique!(T, Allocator) make(Args...)(auto ref Args args)
             {
                 auto ptr = Allocator.instance.make!(T)(forward!args);
                 auto uq = Unique!(T, Allocator)(ptr);
@@ -75,7 +75,7 @@ struct Unique(T, Allocator = Mallocator)
             }
 
             static Unique!(T, Allocator) make(Args...)(auto ref Allocator alloc,
-                auto ref Args args) @trusted
+                auto ref Args args)
             {
                 auto ptr = alloc.make!T(forward!args);
                 auto uq = Unique!(T, Allocator)(ptr, alloc);
@@ -86,7 +86,7 @@ struct Unique(T, Allocator = Mallocator)
     }
 
     // Templated copy constructor for polymorphic upcasting.
-    this(DT)(scope auto ref Unique!(DT, Allocator) rhs) @safe
+    this(DT)(scope auto ref Unique!(DT, Allocator) rhs)
     {
         static if (isClassOrIface!T)
             static assert(isAssignable!(T, DT));
@@ -102,7 +102,7 @@ struct Unique(T, Allocator = Mallocator)
     static if (isClassOrIface!T)
     {
         // Polymorphic upcast with ownership transfer
-        Unique!(BT, Allocator) to(BT)() @safe
+        Unique!(BT, Allocator) to(BT)()
             if (isClassOrIface!BT && isAssignable!(BT, T))
         {
             Unique!(BT, Allocator) rv = Unique!(BT, Allocator)(this);
@@ -113,7 +113,7 @@ struct Unique(T, Allocator = Mallocator)
     }
 
     // move ownership to new rvalue Unique
-    Unique!(T, Allocator) move() @safe
+    Unique!(T, Allocator) move()
     {
         auto rv = Unique!(T, Allocator)(this);
         assert(!valid);
@@ -121,13 +121,13 @@ struct Unique(T, Allocator = Mallocator)
     }
 
     // bread and butter
-    ~this() @safe
+    ~this()
     {
         destroy();
     }
 
     // destroy the resource (destructor + free memory)
-    void destroy() @trusted
+    void destroy()
     {
         if (valid)
         {

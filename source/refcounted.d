@@ -60,14 +60,14 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
     {
         static if (!HoldsAllocator)
         {
-            private this(PtrT ptr) @trusted
+            private this(PtrT ptr)
             {
                 this.refcount = cast(RefCounterT*) Allocator.instance.make!size_t(1);
                 this.ptr = ptr;
             }
 
             static RefCounted!(T, Atomic, Allocator)
-            make(Args...)(auto ref Args args) @trusted
+            make(Args...)(auto ref Args args)
             {
                 auto ptr = Allocator.instance.make!(T)(forward!args);
                 auto rq = RefCounted!(T, Atomic, Allocator)(ptr);
@@ -77,7 +77,7 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
         }
         else
         {
-            private this(PtrT ptr, Allocator alloc) @trusted
+            private this(PtrT ptr, Allocator alloc)
             {
                 this.refcount = cast(RefCounterT*) alloc.make!size_t(1);
                 this.ptr = ptr;
@@ -85,7 +85,7 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
             }
 
             static RefCounted!(T, Atomic, Allocator)
-            make(Args...)(auto ref Allocator alloc, auto ref Args args) @trusted
+            make(Args...)(auto ref Allocator alloc, auto ref Args args)
             {
                 auto ptr = alloc.make!(T)(forward!args);
                 auto rq = RefCounted!(T, Atomic, Allocator)(ptr, alloc);
@@ -96,13 +96,13 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
     }
 
     // bread and butter
-    ~this() @safe
+    ~this()
     {
         decrement();
     }
 
     // destroy the resource (destructor + free memory)
-    private void destroy() @trusted
+    private void destroy()
     {
         static if (HoldsAllocator)
             allocator.dispose(ptr);
@@ -110,7 +110,7 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
             Allocator.instance.dispose(ptr);
     }
 
-    private void decrement() @safe
+    private void decrement()
     {
         assert(valid);
         static if (Atomic)
@@ -144,7 +144,7 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
     {
         // Polymorphism-aware assign operator
         ref RefCounted!(T, Atomic, Allocator)
-        opAssign(DT)(const RefCounted!(DT, Atomic, Allocator) rhs) @trusted
+        opAssign(DT)(const RefCounted!(DT, Atomic, Allocator) rhs)
             if (isClassOrIface!DT && isAssignable!(T, DT))
         {
             decrement();
@@ -168,7 +168,7 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
         }
 
         // Polymorphic upcast
-        RefCounted!(BT, Atomic, Allocator) to(BT)() const @safe
+        RefCounted!(BT, Atomic, Allocator) to(BT)() const @trusted
             if (isClassOrIface!BT && isAssignable!(BT, T))
         {
             assert(valid);
@@ -180,7 +180,7 @@ struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
     }
     else
     {
-        ref opAssign(const RefCounted!(T, Atomic, Allocator) rhs) @trusted
+        ref opAssign(const RefCounted!(T, Atomic, Allocator) rhs)
         {
             decrement();
             this.ptr = cast(PtrT) rhs.ptr;

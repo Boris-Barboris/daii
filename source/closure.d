@@ -17,7 +17,7 @@ import daii.utils;
 /// Abstract callable object.
 abstract class Closure(Ret, Args...)
 {
-    Ret call(Args args) @trusted;
+    Ret call(Args args);
 }
 
 template AllocationContext(Allocator = Mallocator, bool Atomic = true)
@@ -32,7 +32,7 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
     {
         @disable this();
 
-        private this(CtxRefCounted!(Closure!(Ret, Args)) clos) @safe
+        private this(CtxRefCounted!(Closure!(Ret, Args)) clos)
         {
             _closure = clos;
         }
@@ -44,19 +44,19 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
             return _closure.v is s._closure.v;
         }
 
-        bool opEquals(const Delegate!(Ret, Args) s) const @safe
+        bool opEquals(const Delegate!(Ret, Args) s) const
         {
             return _closure.v is s._closure.v;
         }
 
-        Ret opCall(Args args) @safe
+        Ret opCall(Args args)
         {
             return _closure.v.call(forward!args);
         }
     }
 
     /// Bread and butter
-    auto autodlg(ExArgs...)(ExArgs exargs) @safe
+    auto autodlg(ExArgs...)(ExArgs exargs)
     {
         static if (isStaticAllocator!Allocator)
             enum f_idx = 0; // index of function in exargs
@@ -95,7 +95,7 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
             // captured variables are mixed-in inside class body
             mixin(fieldExpand!(CapturedArgs.length, "CapturedArgs"));
 
-            this(RetType function(AllArgs) f, CapturedArgs cpt) @safe
+            this(RetType function(AllArgs) f, CapturedArgs cpt)
             {
                 _f = f;
                 foreach (i, field; CapturedArgs)
@@ -105,7 +105,7 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
                 }
             }
 
-            override RetType call(DlgArgs args) @trusted
+            override RetType call(DlgArgs args)
             {
                 static if (CapturedArgs.length > 0)
                 {
