@@ -92,8 +92,8 @@ assert(bdec == 1);
 ```d
 int sum = 0;
 int[] arr = [3, 5, 1, 9, 4];
-// Delegate!(T1, T2, T3) is a struct, that overloads opCall with signature
-// T1 opCall(T2 p1, T3 p2).First template parameter is the return type.
+// Delegate!(T1, T2, T3, T4, ...) is a struct, that overloads opCall with signature
+// T1 opCall(T2 p1, T3 p2, T4 p3, ...).First template parameter is the return type.
 // Use `void` if it's a procedure.
 void map(int[] arr, Delegate!(void, int) dlg)
 {
@@ -109,6 +109,7 @@ void map(int[] arr, Delegate!(void, int) dlg)
 // by pointer.
 // `sum` is bound to `s` function parameter. `x` is taken from
 // the opCall of resulting Delegate.
+// You are not limited to one captured parameter.
 auto dlg = autodlg((int x, int* s) { *s += x; }, &sum);
 map(arr, dlg);
 assert(sum == 22);
