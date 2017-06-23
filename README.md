@@ -18,7 +18,7 @@ import std.experimental.allocator.mallocator: Mallocator;
 alias MallocCtx = AllocationContext!(Mallocator, true);
 // MyCtx will contain primitives, that use static malloc and atomic operations
 // where applicable. Currently, Atomic option is only used in reference counter
-// decrement\increment of RefCounter struct.
+// decrement\increment of RefCounted struct.
 
 // Create some aliases up to your taste
 alias Unique = MallocCtx.Unique;
@@ -42,7 +42,7 @@ class B: A
     {
         Unique!A bq = Unique!B.make(5);  // supports upcasting
         // Unique is not a proxy for the resource,
-        // access it by .v property.
+        // access underlying object by .v property.
         B val = cast(B) bq.v;
         assert(val.x == 5);
         val.x = 4;
