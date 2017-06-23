@@ -2,16 +2,15 @@
 ## Overview
 daii provides commonly-used in C++ scope-based RAII paradigm primitives:   
 * Unique - unique pointer.
-* RefCounted - reference-counting pointer.
-It also provides Delegate type - Phobos allocator friendly mechanism to easily
-build closures.
+* RefCounted - reference-counting pointer.   
+
+It also provides Delegate type - mechanism to easily build allocator-aware closures.
 
 I would like to thank @atilaneves for his wonderful library automem, wich inspired
 daii.
 ## Examples
 ### Setup
-```
-// import daii
+```d
 import daii;
 
 // Create a shortcut to allocation context:
@@ -28,7 +27,7 @@ alias Delegate = MallocCtx.Delegate;
 alias autodlg = MallocCtx.autodlg;
 ```
 ### Unique
-```
+```d
 static int ades = 0;
 class A { ~this() { ades++; } }
 static int bdes = 0;
@@ -64,7 +63,7 @@ class B: A
 }
 ```
 ### RefCounted
-```
+```d
 static int adec = 0;
 class C { ~this() { adec++; } }
 static int bdec = 0;
@@ -90,7 +89,7 @@ assert(bdec == 1);
 ```
 
 ### Delegate
-```
+```d
 int sum = 0;
 int[] arr = [3, 5, 1, 9, 4];
 // Delegate!(T1, T2, T3) is a struct, that overloads opCall with signature
@@ -114,7 +113,7 @@ auto dlg = autodlg((int x, int* s) { *s += x; }, &sum);
 map(arr, dlg);
 assert(sum == 22);
 ```
-```
+```d
 static int counter = 0;
 // This call to autodlg constructs eponymous closure, that holds
 // one int field. `int` type is deduced from `0`, not from `ref int ctr`.
@@ -134,7 +133,7 @@ assert(counter == 3);
 auto dlg2 = dlg;
 assert(dlg2 == dlg);
 ```
-```
+```d
 import std.algorithm.comparison: equal;
 import std.container.array: Array;
 
@@ -180,7 +179,9 @@ class EventReciever
 assert(equal(global_str, "FizzKBuzzKDD"));
 ```
 ### Custom allocators
-```
+```d
+import daii;
+
 // If you want to use instantiated allocator:
 import std.experimental.allocator.showcase;
 alias AllocType = StackFront!(4096, Mallocator);
