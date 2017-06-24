@@ -112,9 +112,17 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
         private void destroy()
         {
             static if (HoldsAllocator)
+            {
                 allocator.dispose(ptr);
+                allocator.dispose(refcount);
+            }
             else
+            {
                 Allocator.instance.dispose(ptr);
+                Allocator.instance.dispose(refcount);
+            }
+            ptr = null;
+            refcount = null;
         }
 
         private void decrement()
