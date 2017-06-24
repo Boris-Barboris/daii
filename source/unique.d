@@ -10,139 +10,165 @@ import std.experimental.allocator.mallocator: Mallocator;
 import std.functional: forward;
 import std.traits: isArray, isAbstractClass, isAssignable;
 
+import daii.refcounted;
 import daii.utils;
 
-/// Unique memory owner, holds one instance of type T. Don't use it to hold
-/// built-in arrays, use custom array type instead. Deallocates in destructor.
-struct Unique(T, Allocator = Mallocator)
-    if (isAllocator!Allocator && !isArray!T)
+
+template AllocationContext(Allocator = Mallocator, bool Atomic = true)
+    if (isAllocator!Allocator)
 {
-    enum HoldsAllocator = !isStaticAllocator!Allocator;
-
-    static if (isClassOrIface!T)
+    /// Unique memory owner, holds one instance of type T. Don't use it to hold
+    /// built-in arrays, use custom array type instead. Deallocates in destructor.
+    struct Unique(T)
+        if (!isArray!T)
     {
-        alias PtrT = T;
-        @property inout(T) v() inout @nogc @safe
-        {
-            assert(valid);
-            return ptr;
-        }
-    }
-    else
-    {
-        alias PtrT = T*;
-        @property ref inout(T) v() inout @nogc @safe
-        {
-            assert(valid);
-            return *ptr;
-        }
-    }
+        enum HoldsAllocator = !isStaticAllocator!Allocator;
 
-    private PtrT ptr;
-
-    @property bool valid() const @safe @nogc { return ptr !is null; }
-
-    @disable this();
-
-    static if (HoldsAllocator)
-        private Allocator allocator;
-
-    // don't generate constructors for abstract types
-    static if (!(is(T == interface) || isAbstractClass!(T)))
-    {
-        static if (!HoldsAllocator)
-        {
-            private this(PtrT ptr) @safe @nogc
-            {
-                this.ptr = ptr;
-            }
-
-            // factory function for types with parameterless constructors
-            static Unique!(T, Allocator) make(Args...)(auto ref Args args)
-            {
-                auto ptr = Allocator.instance.make!(T)(forward!args);
-                auto uq = Unique!(T, Allocator)(ptr);
-                assert(uq.valid);
-                return uq;
-            }
-        }
-        else
-        {
-            private this(PtrT ptr, Allocator alloc) @safe @nogc
-            {
-                this.ptr = ptr;
-                this.allocator = alloc;
-            }
-
-            static Unique!(T, Allocator) make(Args...)(auto ref Allocator alloc,
-                auto ref Args args)
-            {
-                auto ptr = alloc.make!T(forward!args);
-                auto uq = Unique!(T, Allocator)(ptr, alloc);
-                assert(uq.valid);
-                return uq;
-            }
-        }
-    }
-
-    // Templated copy constructor for polymorphic upcasting.
-    this(DT)(scope auto ref Unique!(DT, Allocator) rhs)
-    {
         static if (isClassOrIface!T)
-            static assert(isAssignable!(T, DT));
-        else
-            static assert(is(T == DT));
-        assert(rhs.valid);
-        this.ptr = rhs.ptr;
-        rhs.ptr = null;
-        static if (HoldsAllocator)
-            this.allocator = rhs.allocator;
-    }
-
-    static if (isClassOrIface!T)
-    {
-        // Polymorphic upcast with ownership transfer
-        Unique!(BT, Allocator) to(BT)()
-            if (isClassOrIface!BT && isAssignable!(BT, T))
         {
-            Unique!(BT, Allocator) rv = Unique!(BT, Allocator)(this);
-            assert(rv.valid);
+            alias PtrT = T;
+            @property inout(T) v() inout @nogc @safe
+            {
+                assert(valid);
+                return ptr;
+            }
+        }
+        else
+        {
+            alias PtrT = T*;
+            @property ref inout(T) v() inout @nogc @safe
+            {
+                assert(valid);
+                return *ptr;
+            }
+        }
+
+        private PtrT ptr;
+
+        @property bool valid() const @safe @nogc { return ptr !is null; }
+
+        @disable this();
+
+        static if (HoldsAllocator)
+            private Allocator allocator;
+
+        // don't generate constructors for abstract types
+        static if (!(is(T == interface) || isAbstractClass!(T)))
+        {
+            static if (!HoldsAllocator)
+            {
+                private this(PtrT ptr) @safe @nogc
+                {
+                    this.ptr = ptr;
+                }
+
+                // factory function for types with parameterless constructors
+                static Unique!T make(Args...)(auto ref Args args)
+                {
+                    auto ptr = Allocator.instance.make!(T)(forward!args);
+                    auto uq = Unique!(T)(ptr);
+                    assert(uq.valid);
+                    return uq;
+                }
+            }
+            else
+            {
+                private this(PtrT ptr, Allocator alloc) @safe @nogc
+                {
+                    this.ptr = ptr;
+                    this.allocator = alloc;
+                }
+
+                static Unique!T make(Args...)(auto ref Allocator alloc,
+                    auto ref Args args)
+                {
+                    auto ptr = alloc.make!T(forward!args);
+                    auto uq = Unique!(T)(ptr, alloc);
+                    assert(uq.valid);
+                    return uq;
+                }
+            }
+        }
+
+        // Templated copy constructor for polymorphic upcasting.
+        this(DT)(scope auto ref Unique!DT rhs)
+        {
+            static if (isClassOrIface!T)
+                static assert(isAssignable!(T, DT));
+            else
+                static assert(is(T == DT));
+            assert(rhs.valid);
+            this.ptr = rhs.ptr;
+            rhs.ptr = null;
+            static if (HoldsAllocator)
+                this.allocator = rhs.allocator;
+        }
+
+        static if (isClassOrIface!T)
+        {
+            // Polymorphic upcast with ownership transfer
+            Unique!BT to(BT)()
+                if (isClassOrIface!BT && isAssignable!(BT, T))
+            {
+                Unique!BT rv = Unique!(BT)(this);
+                assert(rv.valid);
+                assert(!valid);
+                return rv;
+            }
+        }
+
+        // move ownership to new rvalue Unique
+        Unique!T move()
+        {
+            auto rv = Unique!(T)(this);
             assert(!valid);
             return rv;
         }
-    }
 
-    // move ownership to new rvalue Unique
-    Unique!(T, Allocator) move()
-    {
-        auto rv = Unique!(T, Allocator)(this);
-        assert(!valid);
-        return rv;
-    }
+        // move ownership to new refcounted
+        alias SiblingRefCounted =
+            daii.refcounted.AllocationContext!(Allocator, Atomic).RefCounted!(T);
 
-    // bread and butter
-    ~this()
-    {
-        destroy();
-    }
-
-    // destroy the resource (destructor + free memory)
-    void destroy()
-    {
-        if (valid)
+        SiblingRefCounted toRefCounted()
         {
             static if (HoldsAllocator)
-                allocator.dispose(ptr);
+                auto rc = SiblingRefCounted(ptr, allocator);
             else
-                Allocator.instance.dispose(ptr);
-            ptr = null;
+                auto rc = SiblingRefCounted(ptr);
+            this.ptr = null;
+            assert(!valid);
+            return rc;
         }
-    }
 
-    // no ownership transfers, use move and construct new uniqueptr
-    @disable this(this);
-    @disable ref Unique!(T, Allocator) opAssign(DT)(Unique!(DT, Allocator) rhs);
-    @disable ref Unique!(T, Allocator) opAssign(DT)(ref Unique!(DT, Allocator) rhs);
+        // bread and butter
+        ~this()
+        {
+            destroy();
+        }
+
+        // destroy the resource (destructor + free memory)
+        void destroy()
+        {
+            if (valid)
+            {
+                static if (HoldsAllocator)
+                    allocator.dispose(ptr);
+                else
+                    Allocator.instance.dispose(ptr);
+                ptr = null;
+            }
+        }
+
+        // no ownership transfers, use move and construct new uniqueptr
+        @disable this(this);
+        @disable ref Unique!T opAssign(DT)(Unique!DT rhs);
+        @disable ref Unique!T opAssign(DT)(ref Unique!DT rhs);
+    }
+}
+
+private template Unique(T)
+{
+    alias Unique = AllocationContext!(Mallocator, true).Unique!T;
 }
 
 unittest
@@ -219,7 +245,7 @@ unittest
     }
     alias Alloc = StackFront!(4096, Mallocator);
     Alloc al;
-    alias Uq = Unique!(TC, Alloc*);
+    alias Uq = AllocationContext!(Alloc*, true).Unique!TC;
     auto u1 = Uq.make(&al);
     assert(count == 1);
     {

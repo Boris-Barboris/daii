@@ -13,184 +13,193 @@ import std.traits: isArray, isAbstractClass, isAssignable;
 
 import daii.utils;
 
-/// Reference-counting memory owner, holds one shared instance of type T.
-/// Don't use it to hold built-in arrays, use custom array type instead.
-/// Deallocates in destructor, when reference count is zero.
-struct RefCounted(T, bool Atomic = true, Allocator = Mallocator)
-    if (isAllocator!Allocator && !isArray!T)
+
+template AllocationContext(Allocator = Mallocator, bool Atomic = true)
+    if (isAllocator!Allocator)
 {
-    enum HoldsAllocator = !isStaticAllocator!Allocator;
-
-    static if (isClassOrIface!T)
+    /// Reference-counting memory owner, holds one shared instance of type T.
+    /// Don't use it to hold built-in arrays, use custom array type instead.
+    /// Deallocates in destructor, when reference count is zero.
+    struct RefCounted(T)
+        if (!isArray!T)
     {
-        alias PtrT = T;
-        @property inout(T) v() inout @nogc @safe
+        enum HoldsAllocator = !isStaticAllocator!Allocator;
+
+        static if (isClassOrIface!T)
         {
-            assert(valid);
-            return ptr;
-        }
-    }
-    else
-    {
-        alias PtrT = T*;
-        @property ref inout(T) v() inout @nogc @safe
-        {
-            assert(valid);
-            return *ptr;
-        }
-    }
-
-    static if (Atomic)
-        alias RefCounterT = shared size_t;
-    else
-        alias RefCounterT = size_t;
-
-    private RefCounterT* refcount;
-    private PtrT ptr;
-
-    @property bool valid() const @nogc @safe { return *refcount > 0; }
-
-    @disable this();
-
-    static if (HoldsAllocator)
-        private Allocator allocator;
-
-    // don't generate constructors for abstract types
-    static if (!(is(T == interface) || isAbstractClass!(T)))
-    {
-        static if (!HoldsAllocator)
-        {
-            private this(PtrT ptr)
+            alias PtrT = T;
+            @property inout(T) v() inout @nogc @safe
             {
-                this.refcount = cast(RefCounterT*) Allocator.instance.make!size_t(1);
-                this.ptr = ptr;
-            }
-
-            static RefCounted!(T, Atomic, Allocator)
-            make(Args...)(auto ref Args args)
-            {
-                auto ptr = Allocator.instance.make!(T)(forward!args);
-                auto rq = RefCounted!(T, Atomic, Allocator)(ptr);
-                assert(rq.valid);
-                return rq;
+                assert(valid);
+                return ptr;
             }
         }
         else
         {
-            private this(PtrT ptr, Allocator alloc)
+            alias PtrT = T*;
+            @property ref inout(T) v() inout @nogc @safe
             {
-                this.refcount = cast(RefCounterT*) alloc.make!size_t(1);
-                this.ptr = ptr;
-                this.allocator = alloc;
-            }
-
-            static RefCounted!(T, Atomic, Allocator)
-            make(Args...)(auto ref Allocator alloc, auto ref Args args)
-            {
-                auto ptr = alloc.make!(T)(forward!args);
-                auto rq = RefCounted!(T, Atomic, Allocator)(ptr, alloc);
-                assert(rq.valid);
-                return rq;
+                assert(valid);
+                return *ptr;
             }
         }
-    }
 
-    // bread and butter
-    ~this()
-    {
-        decrement();
-    }
+        static if (Atomic)
+            alias RefCounterT = shared size_t;
+        else
+            alias RefCounterT = size_t;
 
-    // destroy the resource (destructor + free memory)
-    private void destroy()
-    {
+        private RefCounterT* refcount;
+        private PtrT ptr;
+
+        @property bool valid() const @nogc @safe { return *refcount > 0; }
+
+        @disable this();
+
         static if (HoldsAllocator)
-            allocator.dispose(ptr);
-        else
-            Allocator.instance.dispose(ptr);
-    }
+            private Allocator allocator;
 
-    private void decrement()
-    {
-        assert(valid);
-        static if (Atomic)
+        // don't generate constructors for abstract types
+        static if (!(is(T == interface) || isAbstractClass!(T)))
         {
-            if (atomicOp!"-="(*refcount, 1) == 0)
-                destroy();
+            static if (!HoldsAllocator)
+            {
+                package this(PtrT ptr)
+                {
+                    this.refcount = cast(RefCounterT*) Allocator.instance.make!size_t(1);
+                    this.ptr = ptr;
+                }
+
+                static RefCounted!T
+                make(Args...)(auto ref Args args)
+                {
+                    auto ptr = Allocator.instance.make!(T)(forward!args);
+                    auto rq = RefCounted!(T)(ptr);
+                    assert(rq.valid);
+                    return rq;
+                }
+            }
+            else
+            {
+                package this(PtrT ptr, Allocator alloc)
+                {
+                    this.refcount = cast(RefCounterT*) alloc.make!size_t(1);
+                    this.ptr = ptr;
+                    this.allocator = alloc;
+                }
+
+                static RefCounted!(T)
+                make(Args...)(auto ref Allocator alloc, auto ref Args args)
+                {
+                    auto ptr = alloc.make!(T)(forward!args);
+                    auto rq = RefCounted!(T)(ptr, alloc);
+                    assert(rq.valid);
+                    return rq;
+                }
+            }
         }
-        else
-        {
-            if ((*refcount -= 1) == 0)
-                destroy();
-        }
-    }
 
-    private void increment() @safe @nogc
-    {
-        assert(valid);
-        static if (Atomic)
-            atomicOp!"+="(*refcount, 1);
-        else
-            *refcount += 1;
-    }
-
-    this(this) @safe @nogc
-    {
-        increment();
-    }
-
-    // handle polymorphism
-    static if (isClassOrIface!T)
-    {
-        // Polymorphism-aware assign operator
-        ref RefCounted!(T, Atomic, Allocator)
-        opAssign(DT)(const RefCounted!(DT, Atomic, Allocator) rhs)
-            if (isClassOrIface!DT && isAssignable!(T, DT))
+        // bread and butter
+        ~this()
         {
             decrement();
-            this.ptr = cast(PtrT) rhs.ptr;
-            this.refcount = cast(RefCounterT*) rhs.refcount;
-            static if (HoldsAllocator)
-                this.allocator = cast(Allocator) rhs.allocator;
-            increment();
-            return this;
         }
 
-        // Polymorphism-aware constructor
-        this(DT)(const RefCounted!(DT, Atomic, Allocator) rhs) @trusted
-            if (isClassOrIface!DT && isAssignable!(T, DT))
+        // destroy the resource (destructor + free memory)
+        private void destroy()
         {
-            this.ptr = cast(PtrT) rhs.ptr;
-            this.refcount = cast(RefCounterT*) rhs.refcount;
             static if (HoldsAllocator)
-                this.allocator = cast(Allocator) rhs.allocator;
-            increment();
+                allocator.dispose(ptr);
+            else
+                Allocator.instance.dispose(ptr);
         }
 
-        // Polymorphic upcast
-        RefCounted!(BT, Atomic, Allocator) to(BT)() const @trusted
-            if (isClassOrIface!BT && isAssignable!(BT, T))
+        private void decrement()
         {
             assert(valid);
-            RefCounted!(BT, Atomic, Allocator) rv =
-                RefCounted!(BT, Atomic, Allocator)(this);
-            assert(rv.valid);
-            return rv;
+            static if (Atomic)
+            {
+                if (atomicOp!"-="(*refcount, 1) == 0)
+                    destroy();
+            }
+            else
+            {
+                if ((*refcount -= 1) == 0)
+                    destroy();
+            }
         }
-    }
-    else
-    {
-        ref opAssign(const RefCounted!(T, Atomic, Allocator) rhs)
+
+        private void increment() @safe @nogc
         {
-            decrement();
-            this.ptr = cast(PtrT) rhs.ptr;
-            this.refcount = cast(RefCounterT*) rhs.refcount;
-            static if (HoldsAllocator)
-                this.allocator = cast(Allocator) rhs.allocator;
+            assert(valid);
+            static if (Atomic)
+                atomicOp!"+="(*refcount, 1);
+            else
+                *refcount += 1;
+        }
+
+        this(this) @safe @nogc
+        {
             increment();
-            return this;
+        }
+
+        // handle polymorphism
+        static if (isClassOrIface!T)
+        {
+            // Polymorphism-aware assign operator
+            ref RefCounted!(T)
+            opAssign(DT)(const RefCounted!(DT) rhs)
+                if (isClassOrIface!DT && isAssignable!(T, DT))
+            {
+                decrement();
+                this.ptr = cast(PtrT) rhs.ptr;
+                this.refcount = cast(RefCounterT*) rhs.refcount;
+                static if (HoldsAllocator)
+                    this.allocator = cast(Allocator) rhs.allocator;
+                increment();
+                return this;
+            }
+
+            // Polymorphism-aware constructor
+            this(DT)(const RefCounted!(DT) rhs) @trusted
+                if (isClassOrIface!DT && isAssignable!(T, DT))
+            {
+                this.ptr = cast(PtrT) rhs.ptr;
+                this.refcount = cast(RefCounterT*) rhs.refcount;
+                static if (HoldsAllocator)
+                    this.allocator = cast(Allocator) rhs.allocator;
+                increment();
+            }
+
+            // Polymorphic upcast
+            RefCounted!(BT) to(BT)() const @trusted
+                if (isClassOrIface!BT && isAssignable!(BT, T))
+            {
+                assert(valid);
+                RefCounted!(BT) rv = RefCounted!(BT)(this);
+                assert(rv.valid);
+                return rv;
+            }
+        }
+        else
+        {
+            ref opAssign(const RefCounted!(T) rhs)
+            {
+                decrement();
+                this.ptr = cast(PtrT) rhs.ptr;
+                this.refcount = cast(RefCounterT*) rhs.refcount;
+                static if (HoldsAllocator)
+                    this.allocator = cast(Allocator) rhs.allocator;
+                increment();
+                return this;
+            }
         }
     }
+}
+
+private template RefCounted(T)
+{
+    alias RefCounted = AllocationContext!(Mallocator, true).RefCounted!T;
 }
 
 unittest
@@ -275,7 +284,7 @@ unittest
     }
     alias Alloc = StackFront!(4096, Mallocator);
     Alloc al;
-    alias Uq = RefCounted!(TC, true, Alloc*);
+    alias Uq = AllocationContext!(Alloc*, true).RefCounted!(TC);
     auto u1 = Uq.make(&al);
     assert(count == 1);
     {

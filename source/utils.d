@@ -62,13 +62,15 @@ package string fieldExpand(int count, string arrname)()
     return result;
 }
 
-package string fieldsToParamListStr(uint count)
+package string argsAndFields(uint count1, string G1, uint count2)()
 {
     string result = "";
-    for (uint i = 0; i < count; i++)
+    for (uint i = 0; i < count1; i++)
+        result ~= G1 ~ "[" ~ to!string(i) ~ "], ";
+    for (uint i = 0; i < count2; i++)
     {
         result ~= "this.field" ~ to!string(i);
-        if (i < count - 1)
+        if (i < count2 - 1)
             result ~= ", ";
     }
     return result;

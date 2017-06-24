@@ -24,7 +24,8 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
 {
     template CtxRefCounted(T)
     {
-        alias CtxRefCounted = RefCounted!(T, Atomic, Allocator);
+        alias CtxRefCounted =
+            daii.refcounted.AllocationContext!(Allocator, Atomic).RefCounted!T;
     }
 
     /// RAII wrapper for callable closure.
@@ -109,9 +110,9 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
             {
                 static if (CapturedArgs.length > 0)
                 {
-                    enum string captee_fields =
-                        fieldsToParamListStr(CapturedArgs.length);
-                    return _f(forward!args, mixin(captee_fields));
+                    enum string paramlist =
+                        argsAndFields!(DlgArgs.length, "args", CapturedArgs.length)();
+                    mixin("return _f(" ~ paramlist ~ ");");
                 }
                 else
                     return _f(forward!args);
@@ -125,28 +126,6 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
         Delegate!(RetType, DlgArgs) dlg = Delegate!(RetType, DlgArgs)(rfc);
         return dlg;
     }
-}
-
-unittest
-{
-    alias Dlg = AllocationContext!(Mallocator, true).Delegate!(void, int);
-    static int counter = 0;
-    static int ccount = 0;
-    class CClosure: Closure!(void, int)
-    {
-        this() { ccount++; }
-        ~this() { ccount--; }
-        override void call(int v) { counter++; }
-    }
-    {
-        RefCounted!(Closure!(void, int)) rfc = RefCounted!CClosure.make;
-        Dlg dlg = Dlg(rfc);
-        dlg(3);
-        dlg(-1);
-        assert(counter == 2);
-        assert(ccount == 1);
-    }
-    assert(ccount == 0);
 }
 
 unittest

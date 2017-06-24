@@ -62,6 +62,13 @@ class B: A
     assert(!cq.valid);
 }
 ```
+```d
+auto uptr = Unique!int.make(5);
+// you can convert uniqueptr to refcounted, but not vice versa
+RefCounted!int rcptr = uptr.toRefCounted();
+assert(!uptr.valid);
+assert(rcptr.v == 5);
+```
 ### RefCounted
 ```d
 static int adec = 0;
@@ -178,6 +185,16 @@ class EventReciever
 // gen destroyed, array destructor destroys all closured.
 // no more references to EventRecievers, their destructors run.
 assert(equal(global_str, "FizzKBuzzKDD"));
+```
+```d
+int x, y;
+float z = 0.0f;
+// autodlg is variadic, you can capture as many variables as you need.
+Delegate!(float, float, float) ddlg =
+    autodlg(
+        (float a, float b, int x, int y, float z) => a + b + x + y + z,
+        x, y, z);
+assert(ddlg(1.0f, 2.0f) == 3.0f);
 ```
 ### Custom allocators
 ```d

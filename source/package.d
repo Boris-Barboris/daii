@@ -15,15 +15,9 @@ import daii.utils;
 template AllocationContext(Allocator = Mallocator, bool Atomic = true)
     if (isAllocator!Allocator)
 {
-    template Unique(T)
-    {
-        alias Unique = daii.unique.Unique!(T, Allocator);
-    }
+    alias Unique = daii.unique.AllocationContext!(Allocator, Atomic).Unique;
 
-    template RefCounted(T)
-    {
-        alias RefCounted = daii.refcounted.RefCounted!(T, Atomic, Allocator);
-    }
+    alias RefCounted = daii.refcounted.AllocationContext!(Allocator, Atomic).RefCounted;
 
     alias Delegate = daii.closure.AllocationContext!(Allocator, Atomic).Delegate;
 
@@ -85,6 +79,13 @@ unittest
             assert(bdes == 1);
             assert(!cq.valid);
         }
+    }
+    {
+        auto uptr = Unique!int.make(5);
+        // you can convert uniqueptr to refcounted, but not vice versa
+        RefCounted!int rcptr = uptr.toRefCounted();
+        assert(!uptr.valid);
+        assert(rcptr.v == 5);
     }
 
     // RefCounted
@@ -207,6 +208,18 @@ unittest
             // gen destroyed, array destructor destroys all closured.
             // no more references to EventRecievers, their destructors run.
             assert(equal(global_str, "FizzKBuzzKDD"));
+        }
+        // case 4
+        {
+            int x, y;
+            float z = 0.0f;
+            // autodlg is variadic, you can capture as many variables
+            // as you need.
+            Delegate!(float, float, float) ddlg =
+                autodlg(
+                    (float a, float b, int x, int y, float z) => a + b + x + y + z,
+                    x, y, z);
+            assert(ddlg(1.0f, 2.0f) == 3.0f);
         }
     }
 
