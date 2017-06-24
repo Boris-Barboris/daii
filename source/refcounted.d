@@ -159,7 +159,8 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
                 this.refcount = cast(RefCounterT*) rhs.refcount;
                 static if (HoldsAllocator)
                     this.allocator = cast(Allocator) rhs.allocator;
-                increment();
+                if (valid)
+                    increment();
                 return this;
             }
 
@@ -171,7 +172,8 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
                 this.refcount = cast(RefCounterT*) rhs.refcount;
                 static if (HoldsAllocator)
                     this.allocator = cast(Allocator) rhs.allocator;
-                increment();
+                if (valid)
+                    increment();
             }
 
             // Polymorphic upcast
@@ -193,7 +195,8 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
                 this.refcount = cast(RefCounterT*) rhs.refcount;
                 static if (HoldsAllocator)
                     this.allocator = cast(Allocator) rhs.allocator;
-                increment();
+                if (valid)
+                    increment();
                 return this;
             }
         }
