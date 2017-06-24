@@ -52,7 +52,10 @@ template AllocationContext(Allocator = Mallocator, bool Atomic = true)
         private RefCounterT* refcount;
         private PtrT ptr;
 
-        @property bool valid() const @nogc @safe { return *refcount > 0; }
+        @property bool valid() const @nogc @safe
+        {
+            return (refcount !is null) && (*refcount > 0);
+        }
 
         @disable this();
 
